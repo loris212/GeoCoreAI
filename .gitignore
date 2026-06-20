@@ -78,3 +78,9 @@ archive/
 *.pt
 *.pth
 *.onnx
+
+# Generated experiment artifacts (riproducibili dagli script in experiments/)
+experiments/out/
+experiments/yolo_ds/
+experiments/yolo_runs/
+*.cache
