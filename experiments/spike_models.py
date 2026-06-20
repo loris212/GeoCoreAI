@@ -37,23 +37,31 @@ COVER_V = 0.40                       # un pezzo copre >=40% dell'altezza del can
 # --------------------------------------------------------------------------- #
 class DetectorSAM:
     name = "SAM2.1 (zero-shot)"
+    MAXW = 640                       # downscale: SAM auto full-res e' impraticabile
     def __init__(self):
         from ultralytics import SAM
         self.model = SAM(SAM_CKPT)
     def __call__(self, img, soglia_px):
-        H = img.shape[0]
-        res = self.model(img, verbose=False, device="mps")
+        H0, W0 = img.shape[:2]
+        sc = self.MAXW / W0 if W0 > self.MAXW else 1.0
+        small = (cv2.resize(img, (int(W0 * sc), max(8, int(H0 * sc))))
+                 if sc < 1.0 else img)
+        Hs = small.shape[0]
+        res = self.model(small, verbose=False, device="mps", imgsz=self.MAXW)
         if not res or res[0].masks is None:
             return []
         masks = res[0].masks.data.cpu().numpy() > 0.5
         out = []
         for m in masks:
+            if m.shape != small.shape[:2]:
+                m = cv2.resize(m.astype(np.uint8), (small.shape[1], Hs)) > 0
             ys, xs = np.where(m)
             if len(xs) == 0:
                 continue
-            if (ys.max() - ys.min()) < COVER_V * H:     # scarta non-pezzi (cartellini, slivers)
+            if (ys.max() - ys.min()) < COVER_V * Hs:     # scarta non-pezzi (cartellini, slivers)
                 continue
-            x0, x1 = int(xs.min()), int(xs.max())
+            # rimappa le x alla risoluzione originale (soglia_px e' in px originali)
+            x0, x1 = int(xs.min() / sc), int(xs.max() / sc)
             if (x1 - x0) >= soglia_px:
                 out.append((x0, x1))
         return out
@@ -200,67 +208,111 @@ class DetectorCV:
         return rileva_pezzi_cv(img, soglia_px)
 
 
+SAM_MAX = 16   # SAM auto e' ~19s/crop anche a 640px: valutato su subset stratificato
+
+
+def riga_metrica(name, m):
+    return (f"{name:24s} {m['mae']:6.1f} {m['corr']:+6.2f} {m['classe']:8.0f} "
+            f"{m['entro5']:8.0f} {m['mae_poor']:9.1f} {m['t_crop']*1000:8.0f}ms")
+
+
+def valuta_su(test_dict, det):
+    righe, t_det, n_crop = valuta_detector(test_dict, det)
+    m = metriche(righe)
+    m["t_tot"] = t_det
+    m["t_crop"] = t_det / max(1, n_crop)
+    return righe, m
+
+
 def main():
     manovre, _ = costruisci_manovre()
     test = {k: v for k, v in manovre.items() if k[0] == TEST_SOND}
     print(f"Test set (held-out {TEST_SOND}): {len(test)} manovre\n")
 
-    detectors = [DetectorCV()]
+    cv_det = DetectorCV()
+    yolo_det = DetectorYOLO() if YOLO_BEST.exists() else None
     try:
-        detectors.append(DetectorSAM())
+        sam_det = DetectorSAM()
     except Exception as e:
+        sam_det = None
         print(f"[!] SAM non disponibile: {e}")
-    if YOLO_BEST.exists():
-        try:
-            detectors.append(DetectorYOLO())
-        except Exception as e:
-            print(f"[!] YOLO non disponibile: {e}")
-    else:
-        print(f"[!] Pesi YOLO non trovati ({YOLO_BEST}) — addestra prima con prep_e_train_yolo.py")
 
-    risultati = {}
-    righe_per_det = {}
-    for det in detectors:
-        print(f"--- {det.name} ---")
-        righe, t_det, n_crop = valuta_detector(test, det)
-        m = metriche(righe)
-        m["t_tot"] = t_det
-        m["t_crop"] = t_det / max(1, n_crop)
-        risultati[det.name] = m
-        righe_per_det[det.name] = righe
-        print(f"    MAE={m['mae']:.1f}  corr={m['corr']:+.2f}  classe={m['classe']:.0f}%  "
-              f"entro5={m['entro5']:.0f}%  MAE_poor={m['mae_poor']:.1f}  "
-              f"t={m['t_tot']:.1f}s ({m['t_crop']*1000:.0f}ms/crop)\n")
+    # --- candidati veri sul TEST PIENO ---
+    print("--- OpenCV (test pieno) ---")
+    cv_righe, cv_m = valuta_su(test, cv_det)
+    print("    " + riga_metrica(cv_det.name, cv_m))
+    yolo_righe, yolo_m = (None, None)
+    if yolo_det:
+        print("--- YOLO-seg (test pieno) ---")
+        yolo_righe, yolo_m = valuta_su(test, yolo_det)
+        print("    " + riga_metrica(yolo_det.name, yolo_m))
 
-    # esempi: scegli la manovra a GT piu' basso e a GT piu' alto (comune a tutti)
-    base = righe_per_det[detectors[0].name]
-    case_low = min(base, key=lambda r: r["rqd_gt"])
-    case_high = max(base, key=lambda r: r["rqd_gt"])
-    for det in detectors:
-        rr = righe_per_det[det.name]
-        low = [r for r in rr if (r["prof_in"], r["prof_fin"]) == (case_low["prof_in"], case_low["prof_fin"])]
-        high = [r for r in rr if (r["prof_in"], r["prof_fin"]) == (case_high["prof_in"], case_high["prof_fin"])]
-        overlay(low, test, det, "poor")
-        overlay(high, test, det, "good")
+    # --- subset stratificato per SAM (per GT crescente) ---
+    gt_ord = sorted(cv_righe, key=lambda r: r["rqd_gt"])
+    step = max(1, len(gt_ord) // SAM_MAX)
+    sel = gt_ord[::step][:SAM_MAX]
+    keys = {(r["sondaggio"], r["prof_in"], r["prof_fin"]) for r in sel}
+    sub = {k: v for k, v in test.items() if k in keys}
+    print(f"\n--- SAM subset stratificato: {len(sub)} manovre ---")
+    sam_m = sam_righe = None
+    if sam_det:
+        sam_righe, sam_m = valuta_su(sub, sam_det)
+        print("    " + riga_metrica(sam_det.name, sam_m))
+    # OpenCV e YOLO ricalcolati sullo STESSO subset (confronto equo a 3 vie)
+    _, cv_sub_m = valuta_su(sub, cv_det)
+    yolo_sub_m = valuta_su(sub, yolo_det)[1] if yolo_det else None
 
-    # tabella finale
-    print("=" * 84)
-    print(f"{'Detector':24s} {'MAE':>6s} {'corr':>6s} {'classe%':>8s} "
-          f"{'entro5%':>8s} {'MAE_poor':>9s} {'t/crop':>9s}")
-    print("-" * 84)
-    for name, m in risultati.items():
-        print(f"{name:24s} {m['mae']:6.1f} {m['corr']:+6.2f} {m['classe']:8.0f} "
-              f"{m['entro5']:8.0f} {m['mae_poor']:9.1f} {m['t_crop']*1000:7.0f}ms")
-    print("=" * 84)
+    # --- 5 migliori / 5 peggiori del candidato vincente (YOLO sul test pieno) ---
+    win_name = yolo_det.name if yolo_det else cv_det.name
+    win_righe = yolo_righe if yolo_det else cv_righe
+    ordin = sorted(win_righe, key=lambda r: r["err"])
+    print(f"\n=== 5 MIGLIORI ({win_name}, test pieno) ===")
+    for r in ordin[:5]:
+        print(f"  {r['prof_in']}-{r['prof_fin']}m | GT={r['rqd_gt']:5.1f}  PRED={r['rqd_pred']:5.1f}  err={r['err']:4.1f}")
+    print(f"=== 5 PEGGIORI ({win_name}, test pieno) ===")
+    for r in ordin[-5:]:
+        print(f"  {r['prof_in']}-{r['prof_fin']}m | GT={r['rqd_gt']:5.1f}  PRED={r['rqd_pred']:5.1f}  err={r['err']:4.1f}")
+
+    # overlay su caso peggiore (poor rock) e migliore (good rock) per ogni detector
+    case_low, case_high = ordin[-1], ordin[0]
+    for det, rr in [(cv_det, cv_righe), (yolo_det, yolo_righe)]:
+        if det is None:
+            continue
+        for tag, c in [("poor", case_low), ("good", case_high)]:
+            sel_r = [r for r in rr if (r["prof_in"], r["prof_fin"]) == (c["prof_in"], c["prof_fin"])]
+            overlay(sel_r, test, det, tag)
+
+    # --- TABELLE ---
+    hdr = (f"{'Detector':24s} {'MAE':>6s} {'corr':>6s} {'classe%':>8s} "
+           f"{'entro5%':>8s} {'MAE_poor':>9s} {'t/crop':>10s}")
+    print("\n" + "=" * 86)
+    print(f"TABELLA A — candidati sul TEST PIENO ({len(test)} manovre)")
+    print(hdr); print("-" * 86)
+    print(riga_metrica(cv_det.name, cv_m))
+    if yolo_m:
+        print(riga_metrica(yolo_det.name, yolo_m))
+    print("=" * 86)
+    print(f"TABELLA B — confronto a 3 vie sullo STESSO subset ({len(sub)} manovre)")
+    print(hdr); print("-" * 86)
+    print(riga_metrica(cv_det.name, cv_sub_m))
+    if sam_m:
+        print(riga_metrica(sam_det.name, sam_m))
+    if yolo_sub_m:
+        print(riga_metrica(yolo_det.name, yolo_sub_m))
+    print("=" * 86)
 
     with open(OUT / "spike_results.csv", "w", newline="") as fp:
         w = csv.writer(fp)
-        w.writerow(["detector", "n", "mae", "corr", "classe_pct", "entro5_pct",
-                    "entro10_pct", "mae_poor", "t_tot_s", "t_crop_ms"])
-        for name, m in risultati.items():
-            w.writerow([name, m["n"], f"{m['mae']:.2f}", f"{m['corr']:.3f}",
-                        f"{m['classe']:.0f}", f"{m['entro5']:.0f}", f"{m['entro10']:.0f}",
-                        f"{m['mae_poor']:.2f}", f"{m['t_tot']:.1f}", f"{m['t_crop']*1000:.0f}"])
+        w.writerow(["tabella", "detector", "n", "mae", "corr", "classe_pct",
+                    "entro5_pct", "mae_poor", "t_crop_ms"])
+        for tab, name, m in [("A_full", cv_det.name, cv_m)] + \
+                ([("A_full", yolo_det.name, yolo_m)] if yolo_m else []) + \
+                [("B_subset", cv_det.name, cv_sub_m)] + \
+                ([("B_subset", sam_det.name, sam_m)] if sam_m else []) + \
+                ([("B_subset", yolo_det.name, yolo_sub_m)] if yolo_sub_m else []):
+            w.writerow([tab, name, m["n"], f"{m['mae']:.2f}", f"{m['corr']:.3f}",
+                        f"{m['classe']:.0f}", f"{m['entro5']:.0f}", f"{m['mae_poor']:.2f}",
+                        f"{m['t_crop']*1000:.0f}"])
     print(f"\nCSV: {OUT/'spike_results.csv'}  | overlay: cmp_*.png")
 
 
