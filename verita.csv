@@ -1,0 +1,6 @@
+id,file,tipo_cassetta,n_file_vere,n_scomparti_nominali,condizione_luce,prospettiva,recupero_pct,cartellino_presente,cartellino_posizione,scala_presente,note
+0001,0001_legno_5file_sole.jpg,legno,5,5,sole_diretto,frontale,100,si,margine_sx,righello,esempio compilato
+0002,0002_plastica_4file_ombra.jpg,plastica,4,4,ombra,obliqua_15deg,90,si,dentro_canale,aruco,carota frammentata fila 3
+0003,,,,,,,,,,,
+0004,,,,,,,,,,,
+0005,,,,,,,,,,,
