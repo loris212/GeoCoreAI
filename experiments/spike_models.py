@@ -30,6 +30,23 @@ TEST_SOND = "Z441"
 SAM_CKPT = "sam2.1_t.pt"            # tiny = piu' veloce per lo spike
 YOLO_BEST = HERE / "yolo_runs/piece_seg/weights/best.pt"
 COVER_V = 0.40                       # un pezzo copre >=40% dell'altezza del canale
+OCC_FRAC = 0.18                      # regola FISSA: colonna = carota se texture > 18% del max
+
+
+def occupied_span(img) -> int:
+    """Larghezza (px) realmente occupata dalla carota in un crop, regola FISSA.
+    Stessa primitiva texture del baseline: colonne con gradiente > OCC_FRAC*max.
+    Serve a stimare P per la scala recovery-aware (toglie margini/cartellini/vuoti
+    dalla mappatura lunghezza-perforata -> pixel). NON tocca il ground-truth."""
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if img.ndim == 3 else img
+    gx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
+    gy = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
+    col = cv2.magnitude(gx, gy).mean(axis=0)
+    k = max(3, gray.shape[1] // 200) | 1
+    col = cv2.GaussianBlur(col.reshape(1, -1), (k, 1), 0).ravel()
+    if col.max() <= 0:
+        return 0
+    return int((col > OCC_FRAC * col.max()).sum())
 
 
 # --------------------------------------------------------------------------- #
@@ -100,7 +117,10 @@ class DetectorYOLO:
 # VALUTAZIONE — copia FEDELE di rqd_baseline.valuta(), detector iniettato.
 # GT (num_gt) identico per tutti i detector: il ground-truth NON cambia.
 # --------------------------------------------------------------------------- #
-def valuta_detector(manovre_test, detector):
+def valuta_detector(manovre_test, detector, soglia_mode="full"):
+    """soglia_mode='full'      -> scala = L_cm/sumW   (assume recupero+riempimento 100%)
+       soglia_mode='recovery'  -> scala = L_cm/P      (P = carota occupata, fill-aware)
+    In ENTRAMBI i casi den=sumW e num_gt restano identici: il GT NON cambia."""
     righe = []
     t_det = 0.0
     n_crop = 0
@@ -125,7 +145,13 @@ def valuta_detector(manovre_test, detector):
             sumW += W
         if not infos or sumW == 0:
             continue
-        scala_cm_px = L_cm / sumW
+        # SOLO QUI entra l'assunzione di recupero: cambia la base in px della scala
+        if soglia_mode == "recovery":
+            P = sum(occupied_span(im) for (_, _, im) in infos if im is not None)
+            base_px = P if P > 0 else sumW
+        else:
+            base_px = sumW
+        scala_cm_px = L_cm / base_px
         soglia_px = 10.0 / scala_cm_px
         num_gt = num_pred = den = 0.0
         crop_ok = 0
@@ -145,7 +171,9 @@ def valuta_detector(manovre_test, detector):
         rqd_pred = 100.0 * num_pred / den
         righe.append(dict(sondaggio=sond, prof_in=a, prof_fin=b,
                           rqd_gt=round(rqd_gt, 1), rqd_pred=round(rqd_pred, 1),
-                          err=round(abs(rqd_gt - rqd_pred), 1)))
+                          err=round(abs(rqd_gt - rqd_pred), 1),
+                          sumW=int(sumW), base_px=int(base_px),
+                          soglia_px=round(soglia_px, 1)))
     return righe, t_det, n_crop
 
 
