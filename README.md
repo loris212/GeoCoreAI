@@ -32,6 +32,15 @@ python -m geocore foto_cassetta.jpg --scomparto-cm 100 --manovra-cm 500 -o out/
 ```
 Produce overlay PNG + JSON con RQD per fila e aggregato.
 
+## Riproduzione dei risultati (tesi)
+
+```bash
+python reproduce.py                 # ablazioni + borehole-CV + casi demo (no SAM)
+python experiments/spike_models.py  # confronto a tre vie completo (con SAM, lento)
+```
+Struttura della tesi e mappatura capitoli→artefatti in **`THESIS_OUTLINE.md`**.
+Il modello addestrato è versionato in `geocore/models/best.pt`.
+
 ## Struttura
 
 | Percorso | Ruolo |

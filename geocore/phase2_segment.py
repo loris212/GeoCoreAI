@@ -11,8 +11,10 @@ from pathlib import Path
 import numpy as np
 import cv2
 
-_DEFAULT_WEIGHTS = (Path(__file__).resolve().parent.parent /
-                    "experiments/yolo_runs/piece_seg/weights/best.pt")
+_PKG = Path(__file__).resolve().parent
+# modello versionato nel pacchetto; fallback all'output di training se assente
+_DEFAULT_WEIGHTS = _PKG / "models" / "best.pt"
+_FALLBACK_WEIGHTS = _PKG.parent / "experiments/yolo_runs/piece_seg/weights/best.pt"
 _MAXW = 1280          # i crop sono strisce molto larghe; cap per inferenza
 _COVER_V = 0.40       # un pezzo copre >=40% dell'altezza della fila
 
@@ -20,8 +22,9 @@ _COVER_V = 0.40       # un pezzo copre >=40% dell'altezza della fila
 class PieceSegmenter:
     """Segmentatore di pezzi. Carica il modello una sola volta."""
 
-    def __init__(self, weights: str | Path = _DEFAULT_WEIGHTS, device: str = "mps"):
-        weights = Path(weights)
+    def __init__(self, weights: str | Path | None = None, device: str = "mps"):
+        weights = Path(weights) if weights else (
+            _DEFAULT_WEIGHTS if _DEFAULT_WEIGHTS.exists() else _FALLBACK_WEIGHTS)
         if not weights.exists():
             raise FileNotFoundError(
                 f"Pesi YOLO non trovati: {weights}\n"
