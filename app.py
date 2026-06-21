@@ -30,6 +30,15 @@ st.title("🪨 GeoCore AI — stima automatica dell'RQD da foto di carota")
 st.caption("Demo v1 · strumento di **assistenza** al geologo, non sostitutivo · "
            "prototipo di ricerca/tesi")
 
+with st.expander("ℹ️ Info · tesi · contatti"):
+    st.markdown(
+        "**GeoCore AI** è il prototipo di una **tesi di laurea in Geologia**: una "
+        "pipeline di Computer Vision che stima l'RQD da foto di cassette di carota.\n\n"
+        "Il valore del progetto non è un numero perfetto, ma la **valutazione "
+        "rigorosa** dei suoi limiti (vedi schede *Metodo* e *Limiti*). "
+        "Strumento di assistenza: la relazione resta firmata da un geologo abilitato.\n\n"
+        "_Contatti:_ <inserisci qui email / LinkedIn>")
+
 DEERE_COLORI = {"molto scadente": "🔴", "scadente": "🟠", "discreto": "🟡",
                 "buono": "🟢", "ottimo": "🟢"}
 
