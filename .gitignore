@@ -93,3 +93,7 @@ geocore/demo_cases_out/
 
 # Modello di produzione (versionato per riproducibilità della demo)
 !geocore/models/best.pt
+
+# Asset demo versionati (per il deploy cloud)
+!geocore/demo_assets/
+!geocore/demo_assets/*.png

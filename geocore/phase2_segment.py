@@ -19,10 +19,23 @@ _MAXW = 1280          # i crop sono strisce molto larghe; cap per inferenza
 _COVER_V = 0.40       # un pezzo copre >=40% dell'altezza della fila
 
 
+def pick_device() -> str:
+    """Sceglie il device disponibile: mps (Mac) -> cuda -> cpu (cloud/server)."""
+    try:
+        import torch
+        if torch.backends.mps.is_available():
+            return "mps"
+        if torch.cuda.is_available():
+            return "cuda"
+    except Exception:
+        pass
+    return "cpu"
+
+
 class PieceSegmenter:
     """Segmentatore di pezzi. Carica il modello una sola volta."""
 
-    def __init__(self, weights: str | Path | None = None, device: str = "mps"):
+    def __init__(self, weights: str | Path | None = None, device: str | None = None):
         weights = Path(weights) if weights else (
             _DEFAULT_WEIGHTS if _DEFAULT_WEIGHTS.exists() else _FALLBACK_WEIGHTS)
         if not weights.exists():
@@ -31,7 +44,7 @@ class PieceSegmenter:
                 "Riproduci il modello con experiments/prep_e_train_yolo.py")
         from ultralytics import YOLO
         self.model = YOLO(str(weights))
-        self.device = device
+        self.device = device or pick_device()
 
     def segment(self, row_img: np.ndarray, min_width_px: float = 0.0) -> list[dict]:
         """Segmenta una fila -> lista di pezzi {x0,x1,y0,y1,larghezza_px}, sx->dx.

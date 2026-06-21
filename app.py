@@ -18,7 +18,11 @@ import cv2
 import streamlit as st
 
 ROOT = Path(__file__).resolve().parent
-MANIFEST = ROOT / "geocore" / "demo_cases_out" / "manifest.json"
+# asset versionati (per il deploy cloud); fallback ai casi generati localmente
+_ASSETS = ROOT / "geocore" / "demo_assets"
+_LOCAL = ROOT / "geocore" / "demo_cases_out"
+CASI_DIR = _ASSETS if (_ASSETS / "manifest.json").exists() else _LOCAL
+MANIFEST = CASI_DIR / "manifest.json"
 ESEMPI_DIR = ROOT / "archive" / "Annotation of core bands"
 
 st.set_page_config(page_title="GeoCore AI — Demo v1", page_icon="🪨", layout="wide")
@@ -104,7 +108,7 @@ with tab_casi:
         etichette = [f"{c['label']}  ·  {c['tipo']}" for c in casi]
         i = st.selectbox("Caso", range(len(casi)), format_func=lambda i: etichette[i])
         c = casi[i]
-        st.image(str(ROOT / c["overlay"]),
+        st.image(str(CASI_DIR / Path(c["overlay"]).name),
                  caption="Verde = pezzi ≥10 cm annotati (verità) · Rosso = pezzi del modello",
                  use_container_width=True)
         k1, k2, k3 = st.columns(3)

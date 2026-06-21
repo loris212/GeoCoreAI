@@ -1,0 +1,57 @@
+[
+  {
+    "label": "Z431 64-71 m",
+    "in_distribution": true,
+    "tipo": "in-distribution",
+    "overlay": "geocore/demo_cases_out/case_Z431_64-71m.png",
+    "rqd_pred": 49.8,
+    "rqd_gt": 48.1,
+    "err": 1.7,
+    "classe_pred": "scadente",
+    "classe_gt": "scadente"
+  },
+  {
+    "label": "Z432 5-10 m",
+    "in_distribution": true,
+    "tipo": "in-distribution",
+    "overlay": "geocore/demo_cases_out/case_Z432_5-10m.png",
+    "rqd_pred": 34.3,
+    "rqd_gt": 38.5,
+    "err": 4.3,
+    "classe_pred": "scadente",
+    "classe_gt": "scadente"
+  },
+  {
+    "label": "Z432 39-46 m",
+    "in_distribution": true,
+    "tipo": "in-distribution",
+    "overlay": "geocore/demo_cases_out/case_Z432_39-46m.png",
+    "rqd_pred": 40.4,
+    "rqd_gt": 36.1,
+    "err": 4.3,
+    "classe_pred": "scadente",
+    "classe_gt": "scadente"
+  },
+  {
+    "label": "Z441 267-274 m",
+    "in_distribution": false,
+    "tipo": "held-out (sondaggio mai visto)",
+    "overlay": "geocore/demo_cases_out/case_Z441_267-274m.png",
+    "rqd_pred": 96.9,
+    "rqd_gt": 97.0,
+    "err": 0.1,
+    "classe_pred": "ottimo",
+    "classe_gt": "ottimo"
+  },
+  {
+    "label": "Z441 392-399 m",
+    "in_distribution": false,
+    "tipo": "held-out (sondaggio mai visto)",
+    "overlay": "geocore/demo_cases_out/case_Z441_392-399m.png",
+    "rqd_pred": 0.0,
+    "rqd_gt": 93.1,
+    "err": 93.1,
+    "classe_pred": "molto scadente",
+    "classe_gt": "ottimo"
+  }
+]
