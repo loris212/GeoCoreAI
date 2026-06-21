@@ -87,3 +87,6 @@ experiments/yolo_runs/
 
 # Output demo geocore (rigenerabile)
 geocore_out/
+
+# Casi demo generati (rigenerabili con python -m geocore.demo_cases)
+geocore/demo_cases_out/

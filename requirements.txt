@@ -1,4 +1,8 @@
-opencv-contrib-python
-numpy
-scipy
-ultralytics
+# GeoCore AI — dipendenze pinnate (riproducibilità tesi/demo)
+opencv-contrib-python==4.13.0.92
+numpy==2.4.6
+scipy==1.18.0
+ultralytics==8.4.72
+torch==2.12.1
+streamlit==1.58.0
+pillow==12.2.0
