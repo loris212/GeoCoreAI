@@ -84,3 +84,6 @@ experiments/out/
 experiments/yolo_ds/
 experiments/yolo_runs/
 *.cache
+
+# Output demo geocore (rigenerabile)
+geocore_out/
