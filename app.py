@@ -63,13 +63,18 @@ with tab_live:
 
     percorso = None
     if modo.startswith("Immagine"):
-        esempi = sorted(glob.glob(str(ESEMPI_DIR / "*.jpg")))[:30]
+        # campioni versionati (disponibili anche online) + dataset locale se presente
+        SAMPLES_DIR = ROOT / "geocore" / "demo_assets" / "samples"
+        esempi = (sorted(glob.glob(str(SAMPLES_DIR / "*.jpg")))
+                  + sorted(glob.glob(str(ESEMPI_DIR / "*.jpg")))[:20])
         if esempi:
-            scelta = st.selectbox("Cassetta di esempio", esempi,
+            scelta = st.selectbox("Esempio (fila in-distribution)", esempi,
                                   format_func=lambda p: Path(p).name)
             percorso = scelta
+            st.caption("Esempi = file di carota *in-distribution* (simili a quelle di "
+                       "addestramento): qui il modello rende bene.")
         else:
-            st.info("Nessuna immagine di esempio trovata in archive/.")
+            st.info("Nessuna immagine di esempio disponibile.")
     else:
         up = st.file_uploader("Foto di una cassetta (jpg/png)", type=["jpg", "jpeg", "png"])
         if up:

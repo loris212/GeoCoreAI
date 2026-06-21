@@ -97,3 +97,6 @@ geocore/demo_cases_out/
 # Asset demo versionati (per il deploy cloud)
 !geocore/demo_assets/
 !geocore/demo_assets/*.png
+
+!geocore/demo_assets/samples/
+!geocore/demo_assets/samples/*.jpg

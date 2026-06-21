@@ -29,10 +29,26 @@ def analizza(percorso: str,
              scala_cm_px: float | None = None,
              scomparto_cm: float | None = None,
              manovra_cm: float | None = None,
-             n_file: int | None = None) -> dict:
-    """Analizza una foto di cassetta e ritorna risultato + overlay (np.ndarray BGR)."""
+             n_file: int | None = None,
+             fila_singola: bool | None = None) -> dict:
+    """Analizza una foto di cassetta e ritorna risultato + overlay (np.ndarray BGR).
+
+    fila_singola: True = l'immagine è UNA fila già ritagliata (salta rettifica/taglio;
+    in-distribution per il modello). None = auto (strisce molto larghe -> singola fila).
+    """
+    from geocore.phase1_rows import carica_immagine_exif
     seg = segmenter or PieceSegmenter()
-    warp, rettificata, file_ = estrai_file(percorso, n_file=n_file)
+
+    img0 = carica_immagine_exif(percorso)
+    H0, W0 = img0.shape[:2]
+    if fila_singola is None:
+        fila_singola = (W0 / max(1, H0)) >= 5.0      # striscia molto larga = una fila
+
+    if fila_singola:
+        warp, rettificata = img0, False
+        file_ = [{"indice": 1, "y0": 0, "y1": H0, "banda": img0}]
+    else:
+        warp, rettificata, file_ = estrai_file(percorso, n_file=n_file)
     larg_warp = warp.shape[1]
 
     # scala cm/px: esplicita, oppure da lunghezza nota dello scomparto, altrimenti None
