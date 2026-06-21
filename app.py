@@ -57,6 +57,8 @@ tab_live, tab_casi, tab_metodo, tab_limiti = st.tabs(
 with tab_live:
     st.markdown("Esegue **davvero** la pipeline di produzione "
                 "`foto → rettifica → YOLO → RQD` (`geocore/pipeline.py`).")
+    st.info("💡 Prova i tre esempi qui sotto per vedere l'intera gamma di qualità: "
+            "carota **ottima** (~96%), **discreta** (~60%) e **molto scadente** (~20%).")
     modo = st.radio("Sorgente immagine",
                     ["Immagine di esempio (cassetta)", "Carica una tua foto"],
                     horizontal=True)
